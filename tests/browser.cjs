@@ -49,6 +49,13 @@ const server = http.createServer((req, res) => {
     const original = await page.evaluate(() => crops[0].url);
     const sourceBytes = Buffer.from(original.split(',')[1], 'base64');
     await page.locator('summary').click();
+    check('Reference defaults use source-faithful resize and original-only export', await page.evaluate(() => $('enhanceMode').value === 'resize' && $('enhanceBlend').disabled && !$('zipEnhanced').checked));
+    await page.getByRole('button', { name: 'Resize copy', exact: true }).click();
+    await page.waitForFunction(() => !activeEnhancement, null, { timeout: 90000 });
+    check('Default resize adds no AI detail and preserves the source', await page.evaluate(url => crops[0].url === url && crops[0].enhanced.blend === 0 && crops[0].enhanced.passes === 0 && crops[0].enhanced.width === crops[0].width * 2, original));
+    check('Source-faithful resize does not download AI tools or weights', !report.network.some(r => /tfjs@|upscaler@|esrgan-legacy/.test(r.url)));
+    await page.getByRole('button', { name: 'Discard resized', exact: true }).click();
+    await page.locator('#enhanceMode').selectOption('ai');
     await page.getByRole('button', { name: 'Enhance copy', exact: true }).click();
     await page.waitForFunction(() => !activeEnhancement, null, { timeout: 180000 });
     console.log('2x result:', await page.evaluate(() => ({ message: crops[0].enhanceMessage, result: crops[0].enhanced && { width: crops[0].enhanced.width, height: crops[0].enhanced.height } })));
@@ -87,6 +94,15 @@ const server = http.createServer((req, res) => {
     check('Enhanced PNG download has a separate scale filename', enhanced.suggestedFilename() === 'face-test-enhanced-4x.png');
     // Name collisions must also remain safe for enhanced copies.
     await page.evaluate(() => { crops.push({ ...crops[0], enhanced: { ...crops[0].enhanced } }); render(); });
+    const referenceZipDownload = page.waitForEvent('download');
+    await page.locator('#downloadAll').click();
+    await (await referenceZipDownload).saveAs(path.join(artifacts, 'originals-only.zip'));
+    const referenceZip = fs.readFileSync(path.join(artifacts, 'originals-only.zip')).toString('base64');
+    check('Default ZIP excludes AI copies even when they exist', await page.evaluate(async encoded => {
+      const zip = await JSZip.loadAsync(encoded, { base64: true });
+      return Object.keys(zip.files).filter(name => !zip.files[name].dir).length === 2 && !Object.keys(zip.files).some(name => name.includes('/enhanced/'));
+    }, referenceZip));
+    await page.locator('#zipEnhanced').check();
     const zipDownload = page.waitForEvent('download');
     await page.locator('#downloadAll').click();
     await (await zipDownload).saveAs(path.join(artifacts, 'organized.zip'));

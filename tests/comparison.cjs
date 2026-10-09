@@ -28,6 +28,23 @@ const server = http.createServer((req, res) => {
     await page.locator('#compareZoom').check();
     assert.ok(await page.evaluate(() => $('compareOriginal').style.maxHeight === 'none' && $('compareOriginal').style.width === $('compareEnhanced').style.width && $('compareEnhanced').height > 480));
     await page.keyboard.press('Escape');
+    // The default mode replaces the optional copy with a non-AI resize.
+    await page.getByRole('button', { name: 'Resize again', exact: true }).click();
+    await page.waitForFunction(() => !activeEnhancement);
+    assert.ok(await page.evaluate(() => crops[0].enhanced.blend === 0 && crops[0].enhanced.passes === 0));
+    const resizedDownload = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download resized', exact: true }).click();
+    assert.equal((await resizedDownload).suggestedFilename(), 'Verified-face-crop-resized-2x.png');
+    await page.locator('#zipEnhanced').check();
+    const zipDownload = page.waitForEvent('download');
+    await page.locator('#downloadAll').click();
+    const zip = await zipDownload;
+    const zipPath = path.join(root, 'test-artifacts/resized-export.zip'); await zip.saveAs(zipPath);
+    assert.ok(await page.evaluate(async encoded => {
+      const zip = await JSZip.loadAsync(encoded, { base64: true });
+      const metadata = JSON.parse(await zip.file('Test/resized/Verified-face-crop-resized-2x.json').async('string'));
+      return !!zip.file('Test/Verified-face-crop.png') && !!zip.file('Test/resized/Verified-face-crop-resized-2x.png') && metadata.blend === 0 && metadata.passes === 0 && metadata.model === 'Conventional resizing';
+    }, fs.readFileSync(zipPath).toString('base64')));
     // Exercise the real pointer/canvas path for a new manual crop.
     await page.getByRole('button', { name: 'Edit Crop', exact: true }).click();
     const rect = await page.locator('#preview').boundingBox();
@@ -35,6 +52,6 @@ const server = http.createServer((req, res) => {
     await page.mouse.move(rect.x + 80, rect.y + 110, { steps: 5 }); await page.mouse.up();
     await page.locator('#saveManual').click();
     assert.ok(await page.evaluate(() => crops.length === 1 && crops[0].width * 5 === crops[0].height * 4 && !crops[0].enhanced && crops[0].url.startsWith('data:image/png')));
-    console.log('PASS Whole-image fit, enlarged inspection, and real pointer crop editing');
+    console.log('PASS Whole-image fit, enlarged inspection, resized PNG/ZIP exports, and real pointer crop editing');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; server.close(); });

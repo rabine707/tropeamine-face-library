@@ -12,7 +12,7 @@ PSNR-small is a 2x Residual Dense Network from idealo/image-super-resolution, tr
 
 Considered alternatives: native-scale ESRGAN Slim is faster, but its general enhancement training has a less explicit fidelity rationale; Real-ESRGAN and HAT would require a local service or larger runtime/model integration. GFPGAN, CodeFormer and diffusion redraw were excluded because face restoration or synthesis can change identity. No sharpening, beautification, face alignment or landmark warping is applied.
 
-Use a 35% model / 65% conventionally resized source blend by default, adjustable from 0% to 100%. This limits pixel changes relative to normal resizing; it is not an identity guarantee. Require visual comparison, preserve the source crop's PNG and default original downloads, and keep enhanced exports separate. 0% explicitly means ordinary resizing.
+For character-consistency references, default to source-faithful ordinary resizing and original-only ZIP exports. AI enhancement requires explicit mode selection. In AI mode, use a 35% model / 65% conventionally resized source blend, adjustable from 0% to 100%. This limits pixel changes relative to normal resizing; it is not an identity guarantee. Require visual comparison, preserve the source crop's PNG and default original downloads, and keep processed exports separate and opt-in. 0% explicitly means ordinary resizing. Label AI copies as unvalidated candidates, without claiming a face-consistency score or automatic identity approval.
 
 ## Boundaries and lifecycle
 
@@ -20,7 +20,7 @@ Use a 35% model / 65% conventionally resized source blend by default, adjustable
 - Quantize crop boxes to integer 4:5 dimensions within the source card, without stretching or enlarging them. Enhanced dimensions must equal source dimensions times the requested scale.
 - Process one crop at a time in padded patches, yield between patches, show progress and provide cancellation. Limit output to 8 million pixels / 4096 pixels per side before downloading a model.
 - Cancel/invalidate work on crop edit, deletion or gallery clear. Verify membership and the unchanged input before attaching any asynchronous result. Failures preserve existing originals and enhancements.
-- Compare original/enhanced at the same displayed size; offer enlarged inspection. Separate enhanced download names contain scale. ZIPs preserve the original layout and include enhanced copies under `enhanced/` plus enhancement metadata.
+- Compare original/processed at the same displayed size; offer enlarged inspection. Separate copy download names contain scale and processing type. ZIPs preserve the original layout; only when requested, include processed copies under `enhanced/` or `resized/` plus settings metadata.
 - No persistence is added: gallery data lasts until refresh, just as before. CDN code/model downloads need a connection, even though images are never uploaded.
 
 Sources consulted before coding:

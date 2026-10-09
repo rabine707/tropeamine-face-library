@@ -19,11 +19,12 @@ $('preview').onpointerup=()=>{drag=null};$('clearSelection').onclick=()=>{select
 $('saveManual').onclick=()=>{if(!selection)return status('Draw a rectangle on the card first.');const s=sources[current],box=portraitBox(selection,s.img,0),crop=makeCrop(s.img,box,safe(s.character)+'-manual-'+(crops.length+1));if(!crop)return status('Crop is too small.');crop.sourceIndex=current;crop.box=box;if(editingCrop!==null&&crops.includes(editingCrop)){const original=editingCrop;cancelEnhancement(original);crop.character=original.character;crop.name=original.name;crops[crops.indexOf(original)]=crop;status('Crop updated at original source resolution.')}else{crop.character=s.character||'Unsorted';crops.push(crop);status('Manual crop added.')}editingCrop=null;selection=null;$('saveManual').textContent='Save selected crop';draw();render()};
 function download(c){const a=document.createElement('a');a.href=c.url;a.download=safe(c.name)+'.png';document.body.append(a);a.click();a.remove()}
 function render(){const g=$('gallery');g.innerHTML='';$('count').textContent='('+crops.length+')';$('downloadAll').disabled=!crops.length;crops.forEach((c,i)=>{const t=document.createElement('div');t.className='tile';const img=document.createElement('img');img.src=c.url;img.alt='Face crop';const inp=document.createElement('input');inp.type='text';inp.value=c.name;inp.setAttribute('aria-label','Crop filename');inp.onchange=()=>c.name=inp.value;const small=document.createElement('small');small.textContent=c.width+' × '+c.height+' pixels';const groupLabel=document.createElement('label');groupLabel.textContent='Character';const groupInput=document.createElement('input');groupInput.type='text';groupInput.value=c.character||'Unsorted';groupInput.setAttribute('aria-label','Character for crop '+(i+1));groupInput.onchange=()=>{c.character=characterName(groupInput.value)};groupLabel.append(groupInput);const down=document.createElement('button');down.textContent='Download original';down.onclick=()=>download(c);const edit=document.createElement('button');edit.className='secondary';edit.textContent='Edit Crop';edit.onclick=()=>{if(c.sourceIndex===undefined||!sources[c.sourceIndex])return status('Original card is no longer available for editing.');editingCrop=c;current=c.sourceIndex;selection={...c.box};$('editorPanel').classList.remove('hidden');$('source').value=current;$('saveManual').textContent='Replace this crop';draw();$('editorPanel').scrollIntoView({behavior:'smooth'});status('Drag a new selection on the card, then click Replace this crop.')};const del=document.createElement('button');del.className='secondary';del.textContent='Remove';del.onclick=()=>{cancelEnhancement(c);if(editingCrop===c)editingCrop=null;crops.splice(crops.indexOf(c),1);render()};t.append(img,groupLabel,inp,small,document.createElement('br'),edit,down,del);t.append(enhancementControls(c));g.append(t)})}
-$('downloadAll').onclick=async()=>{if(!crops.length)return;if(!window.JSZip){status('ZIP library could not load. Check your connection and refresh.');return}const btn=$('downloadAll');btn.disabled=true;try{status('Preparing ZIP with '+crops.length+' face crops…');const zip=new JSZip(),used=new Set();for(let i=0;i<crops.length;i++){const c=crops[i],folder=safe(characterName(c.character));let name=safe(c.name)||'face-'+(i+1);let unique=name,n=2;while(used.has((folder+'/'+unique).toLowerCase()))unique=name+'-'+n++;used.add((folder+'/'+unique).toLowerCase());zip.folder(folder).file(unique+'.png',c.url.split(',')[1],{base64:true});if(c.enhanced){const e=c.enhanced,stem=unique+'-enhanced-'+e.scale+'x';zip.folder(folder+'/enhanced').file(stem+'.png',e.url.split(',')[1],{base64:true});const {url,sourceUrl,...metadata}=e;zip.folder(folder+'/enhanced').file(stem+'.json',JSON.stringify({...metadata,original:unique+'.png'},null,2))}}const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Tropeamine-Organized-Faces.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);status('ZIP ready: '+crops.length+' faces in one download.')}catch(e){status('ZIP download failed: '+e.message)}finally{btn.disabled=false}};
+$('downloadAll').onclick=async()=>{if(!crops.length)return;if(!window.JSZip){status('ZIP library could not load. Check your connection and refresh.');return}const btn=$('downloadAll');btn.disabled=true;try{status('Preparing ZIP with '+crops.length+' face crops…');const zip=new JSZip(),used=new Set(),includeCopies=$('zipEnhanced').checked;for(let i=0;i<crops.length;i++){const c=crops[i],folder=safe(characterName(c.character));let name=safe(c.name)||'face-'+(i+1);let unique=name,n=2;while(used.has((folder+'/'+unique).toLowerCase()))unique=name+'-'+n++;used.add((folder+'/'+unique).toLowerCase());zip.folder(folder).file(unique+'.png',c.url.split(',')[1],{base64:true});if(includeCopies&&c.enhanced){const e=c.enhanced,stem=unique+(e.blend>0?'-enhanced-':'-resized-')+e.scale+'x',copyFolder=folder+(e.blend>0?'/enhanced':'/resized');zip.folder(copyFolder).file(stem+'.png',e.url.split(',')[1],{base64:true});const {url,sourceUrl,...metadata}=e;zip.folder(copyFolder).file(stem+'.json',JSON.stringify({...metadata,original:unique+'.png'},null,2))}}const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Tropeamine-Organized-Faces.zip';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);status('ZIP ready: '+crops.length+' faces in one download.')}catch(e){status('ZIP download failed: '+e.message)}finally{btn.disabled=false}};
 $('clear').onclick=()=>{if(!crops.length||confirm('Remove all extracted faces from this gallery?')){cancelEnhancement();editingCrop=null;crops.length=0;render()}};
 
 let activeEnhancement = null, comparedCrop = null;
 $('enhanceBlend').oninput = () => { $('blendValue').value = $('enhanceBlend').value + '%'; };
+$('enhanceMode').onchange = () => { $('enhanceBlend').disabled = $('enhanceMode').value !== 'ai'; render(); };
 
 function cancelEnhancement(crop) {
   if (activeEnhancement && (!crop || activeEnhancement.crop === crop)) {
@@ -39,7 +40,7 @@ function cancelEnhancement(crop) {
 
 async function enhanceCrop(crop) {
   if (activeEnhancement) return;
-  const scale = Number($('enhanceScale').value), blend = Number($('enhanceBlend').value);
+  const scale = Number($('enhanceScale').value), blend = $('enhanceMode').value === 'ai' ? Number($('enhanceBlend').value) : 0;
   try { FaceEnhancement.validate(crop, scale, blend); }
   catch (error) { crop.enhanceMessage = error.message; render(); return; }
   const job = { crop, sourceUrl: crop.url, controller: new AbortController(), progress: 0, message: 'Preparing enhancement…' };
@@ -61,7 +62,7 @@ async function enhanceCrop(crop) {
     // Editing/removing a crop while awaiting inference must never reattach stale pixels.
     if (!job.controller.signal.aborted && crops.includes(crop) && crop.url === job.sourceUrl) {
       crop.enhanced = result;
-      crop.enhanceMessage = `${scale}× copy ready. Compare before using it.`;
+      crop.enhanceMessage = result.blend > 0 ? `${scale}× AI candidate ready. Compare before using it; character consistency is not validated.` : `${scale}× resized copy ready. No AI detail was added. The original remains your reference master.`;
     }
   } catch (error) {
     if (crops.includes(crop)) crop.enhanceMessage = job.controller.signal.aborted || error.name === 'AbortError'
@@ -79,7 +80,7 @@ function enhancementControls(crop) {
   crop.enhanceRoot = root;
   const running = activeEnhancement?.crop === crop;
   const enhance = document.createElement('button');
-  enhance.className = 'secondary'; enhance.textContent = crop.enhanced ? 'Enhance again' : 'Enhance copy';
+  enhance.className = 'secondary'; enhance.textContent = $('enhanceMode').value === 'ai' ? (crop.enhanced ? 'Enhance again' : 'Enhance copy') : (crop.enhanced ? 'Resize again' : 'Resize copy');
   enhance.disabled = !!activeEnhancement;
   enhance.onclick = () => enhanceCrop(crop);
   root.append(enhance);
@@ -89,7 +90,7 @@ function enhancementControls(crop) {
   progress.setAttribute('aria-label', 'Crop enhancement progress');
   const message = document.createElement('p');
   message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
-  message.textContent = running ? activeEnhancement.message : crop.enhanceMessage || 'Optional. Set scale and blend above, then enhance.';
+  message.textContent = running ? activeEnhancement.message : crop.enhanceMessage || 'Optional. Choose resize or AI enhancement above. Originals are exported by default.';
   if (running) {
     const cancel = document.createElement('button');
     cancel.className = 'secondary'; cancel.textContent = 'Cancel enhancement';
@@ -100,15 +101,15 @@ function enhancementControls(crop) {
   if (crop.enhanced) {
     const e = crop.enhanced;
     const details = document.createElement('p');
-    details.textContent = `${e.width} × ${e.height} pixels · ${e.scale}× · ${e.blend}% AI blend`;
+    details.textContent = `${e.width} × ${e.height} pixels · ${e.scale}× · ` + (e.blend > 0 ? `${e.blend}% AI blend · unvalidated candidate` : 'ordinary resize · no AI model');
     const compare = document.createElement('button');
     compare.className = 'secondary'; compare.textContent = 'Compare';
     compare.onclick = () => showComparison(crop);
     const downloadEnhanced = document.createElement('button');
-    downloadEnhanced.textContent = 'Download enhanced';
-    downloadEnhanced.onclick = () => download({ url: crop.enhanced.url, name: crop.name + '-enhanced-' + crop.enhanced.scale + 'x' });
+    downloadEnhanced.textContent = e.blend > 0 ? 'Download enhanced' : 'Download resized';
+    downloadEnhanced.onclick = () => download({ url: crop.enhanced.url, name: crop.name + (crop.enhanced.blend > 0 ? '-enhanced-' : '-resized-') + crop.enhanced.scale + 'x' });
     const discard = document.createElement('button');
-    discard.className = 'secondary'; discard.textContent = 'Discard enhanced';
+    discard.className = 'secondary'; discard.textContent = e.blend > 0 ? 'Discard enhanced' : 'Discard resized';
     discard.onclick = () => { cancelEnhancement(crop); delete crop.enhanced; crop.enhanceMessage = ''; render(); };
     root.append(details, compare, downloadEnhanced, discard);
   }
@@ -120,6 +121,7 @@ function showComparison(crop) {
   const e = crop.enhanced;
   $('compareOriginal').src = crop.url;
   $('compareEnhanced').src = e.url;
+  $('compareCopyLabel').textContent = e.blend > 0 ? 'AI candidate — unvalidated' : 'Resized copy — no AI';
   $('compareInfo').textContent = `${crop.name}: original ${crop.width} × ${crop.height} → ${e.width} × ${e.height} · ${e.scale}× · ${e.blend}% AI blend · ${e.model}`;
   $('compareZoom').checked = false;
   setComparisonZoom();
