@@ -26,6 +26,8 @@ node tests/browser.cjs
 
 If Playwright is provided by a shared runtime, set `NODE_PATH` to its package directory. The test starts an ephemeral localhost server and performs actual model inference at both scales, source-byte checks, exports, comparison, cancellation, editing/deletion during work, model-download failure/retry, responsive layouts and tensor cleanup. Screenshots and the report go to ignored `test-artifacts/`. Test fixtures are not uploaded or committed.
 
+After that suite, `node tests/comparison.cjs` checks whole-image comparison fit, enlarged inspection and real pointer-driven crop editing using the generated test artifacts. Optionally set `FACE_QA_IMAGES` to a JSON array of additional local PNG paths to create full-face comparison screenshots in the main suite.
+
 ## Model sources and licenses
 
 - [UpscalerJS and ESRGAN Legacy PSNR-small](https://upscalerjs.com/models/available/upscaling/esrgan-legacy/): MIT; this model is frozen and used for its fidelity/size tradeoff.

@@ -128,6 +128,7 @@ function showComparison(crop) {
 function setComparisonZoom() {
   const width = $('compareZoom').checked && comparedCrop ? comparedCrop.enhanced.width + 'px' : '100%';
   $('compareOriginal').style.width = $('compareEnhanced').style.width = width;
+  $('compareOriginal').style.maxHeight = $('compareEnhanced').style.maxHeight = $('compareZoom').checked ? 'none' : '480px';
 }
 $('compareZoom').onchange = setComparisonZoom;
 $('closeCompare').onclick = () => $('comparison').close();
