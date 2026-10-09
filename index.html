@@ -9,7 +9,7 @@
 <p class="hint">Powered by face-api.js SSD MobileNet V1. Automatic detection may miss small or stylized faces; use manual crop for those. Files are not uploaded to a server.</p></main>
 <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <script>
-const $=id=>document.getElementById(id),model='https://justadudewhohacks.github.io/face-api.js/weights',sources=[],crops=[];let ready=false,current=0,selection=null,drag=null;
+const $=id=>document.getElementById(id),model='https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights',sources=[],crops=[];let ready=false,current=0,selection=null,drag=null;
 function status(s){$('status').textContent=s}function safe(s){return (s||'character').trim().replace(/[^a-z0-9_-]+/gi,'-').replace(/^-|-$/g,'')||'character'}
 (async()=>{try{if(!window.faceapi)throw Error('face-api.js could not load');await faceapi.nets.ssdMobilenetv1.loadFromUri(model);ready=true;status('Detector ready. Choose card images to begin.');$('scan').disabled=false}catch(e){status('Model failed to load: '+e.message+'. Check your connection and refresh.')}})();
 async function loadImage(file){return new Promise((resolve,reject)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);resolve(img)};img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Cannot open '+file.name))};img.src=url})}
